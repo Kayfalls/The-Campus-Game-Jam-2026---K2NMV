@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOUNDING — descend by ear</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --abyss:   #04070c;
+    --abyss-2: #070c14;
+    --panel:   #0a1017;
+    --line:    #182430;
+    --pulse:   #57e8d4;
+    --mirror:  #eef4f6;
+    --vent:    #ffcf7a;
+    --hunter:  #ff2d55;
+    --ink:     #cfe0ea;
+    --ink-dim: #4d6577;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{
+    background: radial-gradient(ellipse at 50% 30%, #060b12 0%, #03050a 70%);
+    color:var(--ink);
+    height:100%;
+    font-family:'JetBrains Mono', monospace;
+    overflow:hidden;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:18px;
+  }
+
+  .title-block{
+    text-align:center;
+    margin-bottom:12px;
+  }
+  .title-block h1{
+    font-family:'Cormorant Garamond', serif;
+    font-weight:600;
+    font-style:italic;
+    letter-spacing:0.14em;
+    font-size:clamp(26px,4vw,40px);
+    color:var(--ink);
+    text-transform:uppercase;
+  }
+  .title-block .tag{
+    font-family:'Cormorant Garamond', serif;
+    font-size:14px;
+    letter-spacing:0.2em;
+    color:var(--ink-dim);
+    text-transform:lowercase;
+    margin-top:2px;
+  }
+
+  .rig{
+    position:relative;
+    width:min(900px, 96vw);
+    aspect-ratio: 860/540;
+    border-radius:14px;
+    padding:14px;
+    background:linear-gradient(180deg,#0d1620,#060a10);
+    box-shadow:
+      0 0 0 1px #1c2a38,
+      inset 0 0 40px rgba(0,0,0,0.6),
+      0 30px 60px rgba(0,0,0,0.55);
+  }
+  .porthole{
+    position:relative;
+    width:100%; height:100%;
+    border-radius:8px;
+    overflow:hidden;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.85), inset 0 0 0 2px #0e161f;
+    background:var(--abyss);
+  }
+  canvas#stage{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    display:block;
+  }
+  .vignette{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(0,0,0,0.55) 82%, rgba(0,0,0,0.85) 100%);
+  }
+
+  /* ---------- HUD ---------- */
+  .hud{
+    position:absolute;
+    top:14px; left:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    pointer-events:none;
+  }
+  .gauge{
+    width:52px; height:52px;
+    border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #1b2733, #0a1119 70%);
+    box-shadow: 0 0 0 1px #26343f, inset 0 0 8px rgba(0,0,0,0.7);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .gauge::before{
+    content:'';
+    position:absolute; inset:5px;
+    border-radius:50%;
+    border:1px dashed rgba(87,232,212,0.25);
+  }
+  .gauge .num{
+    font-family:'Cormorant Garamond', serif;
+    font-size:20px; font-style:italic; color:var(--pulse);
+  }
+  .hud-readout{
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .hud-readout .label{ font-size:9px; letter-spacing:0.12em; color:var(--ink-dim); text-transform:uppercase; }
+  .hud-readout .window{
+    background:#060b11;
+    border:1px solid #1b2731;
+    border-radius:3px;
+    padding:2px 8px;
+    font-size:13px;
+    color:var(--ink);
+    min-width:64px;
+  }
+
+  .cooldown{
+    position:absolute;
+    top:14px; right:14px;
+    width:34px; height:34px;
+    border-radius:50%;
+    pointer-events:none;
+  }
+  .cooldown svg{ transform: rotate(-90deg); }
+  .cooldown circle{ fill:none; stroke-width:3; }
+  .cooldown .track{ stroke:#182430; }
+  .cooldown .fill{ stroke:var(--pulse); stroke-linecap:round; transition: stroke-dashoffset 0.05s linear; }
+
+  .hint{
+    position:absolute;
+    bottom:12px; left:0; right:0;
+    text-align:center;
+    font-size:11px;
+    letter-spacing:0.08em;
+    color:var(--ink-dim);
+    pointer-events:none;
+  }
+  .hint b{ color:var(--pulse); }
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:absolute; inset:0;
+    background:rgba(3,5,9,0.92);
+    display:none;
+    align-items:center; justify-content:center;
+    text-align:center;
+    padding:24px;
+  }
+  .overlay.show{ display:flex; }
+  .overlay-inner{ max-width:420px; }
+  .overlay h2{
+    font-family:'Cormorant Garamond', serif;
+    font-style:italic;
+    font-weight:600;
+    font-size:30px;
+    letter-spacing:0.04em;
+    margin-bottom:14px;
+  }
+  .overlay.intro h2{ color:var(--pulse); }
+  .overlay.win h2{ color:var(--vent); }
+  .overlay.lose h2{ color:var(--hunter); }
+  .overlay p, .overlay .rule{
+    font-family:'Cormorant Garamond', serif;
+    font-size:16px;
+    line-height:1.65;
+    color:#a9c0cd;
+    margin-bottom:10px;
+  }
+  .overlay .rule b{ color:var(--ink); font-weight:600; }
+  .overlay button{
+    margin-top:16px;
+    background:transparent;
+    border:1px solid var(--pulse);
+    color:var(--pulse);
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.1em;
+    padding:11px 22px;
+    border-radius:3px;
+    cursor:pointer;
+    text-transform:uppercase;
+    transition: background 0.15s, color 0.15s;
+  }
+  .overlay button:hover{ background:var(--pulse); color:#03130d; }
+  .overlay.win button{ border-color:var(--vent); color:var(--vent); }
+  .overlay.win button:hover{ background:var(--vent); color:#2b1c04; }
+  .overlay.lose button{ border-color:var(--hunter); color:var(--hunter); }
+  .overlay.lose button:hover{ background:var(--hunter); color:#2b0410; }
+
+  .footnote{
+    margin-top:12px;
+    font-size:10px;
+    letter-spacing:0.08em;
+    color:#33465400;
+    color:var(--ink-dim);
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+  <div class="title-block">
+    <h1>Sounding</h1>
+    <div class="tag">descend by ear</div>
+  </div>
+
+  <div class="rig">
+    <div class="porthole">
+      <canvas id="stage" width="860" height="540"></canvas>
+      <div class="vignette"></div>
+
+      <div class="hud">
+        <div class="gauge"><div class="num" id="depthNum">I</div></div>
+        <div class="hud-readout">
+          <div class="label">Echoes cast</div>
+          <div class="window" id="echoCount">0</div>
+        </div>
+      </div>
+
+      <div class="cooldown">
+        <svg width="34" height="34">
+          <circle class="track" cx="17" cy="17" r="14"></circle>
+          <circle class="fill" id="cdRing" cx="17" cy="17" r="14" stroke-dasharray="88" stroke-dashoffset="0"></circle>
+        </svg>
+      </div>
+
+      <div class="hint">move <b>WASD</b> / <b>arrows</b> &nbsp;·&nbsp; cast an echo <b>space</b></div>
+
+      <div class="overlay intro show" id="introOverlay">
+        <div class="overlay-inner">
+          <h2>the dark has depth</h2>
+          <p class="rule">You carry no light — only <b>sound</b>. Press space to cast an echo: it paints the rock around you, then fades.</p>
+          <p class="rule">Silvered stone <b>carries the echo further</b>, bending it around corners you can't yet see.</p>
+          <p class="rule">Something down here <b>hunts by the same sound</b>. Every echo you cast, it hears.</p>
+          <p class="rule">Find the warm vent. Descend.</p>
+          <button id="startBtn">begin the descent</button>
+        </div>
+      </div>
+
+      <div class="overlay win" id="winOverlay">
+        <div class="overlay-inner">
+          <h2 id="winTitle">vent found</h2>
+          <p id="winBody">The water warms. Something ahead breathes easier than the dark behind.</p>
+          <button id="nextBtn">descend further</button>
+        </div>
+      </div>
+
+      <div class="overlay lose" id="loseOverlay">
+        <div class="overlay-inner">
+          <h2>caught in the dark</h2>
+          <p>It never needed to see you. It only ever needed to listen.</p>
+          <button id="retryBtn">try this depth again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const el = {
+    depthNum: document.getElementById('depthNum'),
+    echoCount: document.getElementById('echoCount'),
+    cdRing: document.getElementById('cdRing'),
+    intro: document.getElementById('introOverlay'),
+    win: document.getElementById('winOverlay'),
+    winTitle: document.getElementById('winTitle'),
+    winBody: document.getElementById('winBody'),
+    lose: document.getElementById('loseOverlay'),
+    startBtn: document.getElementById('startBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    retryBtn: document.getElementById('retryBtn'),
+  };
+
+  const ROMAN = ['I','II','III','IV','V','VI','VII'];
+
+  // ---------------- Level data ----------------
+  function seg(x1,y1,x2,y2,mirror){ return {x1,y1,x2,y2,mirror:!!mirror}; }
+
+  const LEVELS = [
+    { // Depth I — Shelf Reach
+      name: 'Shelf Reach',
+      player: {x:60,y:470},
+      exit:   {x:800,y:70},
+      hunters: [ {x:770,y:450, speed:46} ],
+      cooldown: 950, wallFade: 4200,
+      walls: [
+        seg(420,10,420,340,false),
+        seg(420,340,560,420,true),
+        seg(620,10,620,220,false),
+        seg(620,220,760,220,false),
+      ]
+    },
+    { // Depth II — Twin Vents
+      name: 'Twin Vents',
+      player: {x:50,y:50},
+      exit:   {x:800,y:480},
+      hunters: [ {x:430,y:270, speed:62} ],
+      cooldown: 950, wallFade: 4000,
+      walls: [
+        seg(200,10,200,380,false),
+        seg(200,380,340,460,true),
+        seg(460,140,460,530,false),
+        seg(460,140,630,60,true),
+        seg(660,10,660,320,false),
+      ]
+    },
+    { // Depth III — The Narrows
+      name: 'The Narrows',
+      player: {x:430,y:500},
+      exit:   {x:430,y:35},
+      hunters: [ {x:100,y:100, speed:76} ],
+      cooldown: 1000, wallFade: 3800,
+      walls: [
+        seg(150,340,380,340,false),
+        seg(480,340,710,340,false),
+        seg(380,340,380,430,true),
+        seg(480,340,480,430,true),
+        seg(250,120,400,120,false),
+        seg(460,120,610,120,false),
+        seg(400,120,400,200,true),
+      ]
+    },
+    { // Depth IV — Cold Fold
+      name: 'Cold Fold',
+      player: {x:60,y:270},
+      exit:   {x:800,y:270},
+      hunters: [ {x:430,y:270, speed:85} ],
+      cooldown: 1000, wallFade: 3600,
+      walls: [
+        seg(180,10,180,340,false),
+        seg(180,340,320,410,true),
+        seg(460,140,460,530,false),
+        seg(460,140,610,70,true),
+        seg(680,10,680,380,false),
+      ]
+    },
+    { // Depth V — The Vein
+      name: 'The Vein',
+      player: {x:430,y:500},
+      exit:   {x:760,y:60},
+      hunters: [ {x:200,y:150, speed:95} ],
+      cooldown: 1050, wallFade: 3400,
+      walls: [
+        seg(300,300,300,530,false),
+        seg(300,300,520,300,false),
+        seg(300,300,400,370,true),
+        seg(560,10,560,260,false),
+        seg(680,180,780,180,false),
+        seg(620,260,680,180,true),
+      ]
+    },
+    { // Depth VI — Twin Depths
+      name: 'Twin Depths',
+      player: {x:50,y:500},
+      exit:   {x:800,y:40},
+      hunters: [ {x:400,y:150, speed:80}, {x:650,y:450, speed:78} ],
+      cooldown: 1050, wallFade: 3200,
+      walls: [
+        seg(220,150,220,530,false),
+        seg(220,150,360,90,true),
+        seg(460,10,460,340,false),
+        seg(640,150,640,530,false),
+      ]
+    },
+    { // Depth VII — The Hollow Below
+      name: 'The Hollow Below',
+      player: {x:430,y:510},
+      exit:   {x:430,y:30},
+      hunters: [ {x:200,y:270, speed:100}, {x:660,y:270, speed:105} ],
+      cooldown: 1100, wallFade: 3000,
+      walls: [
+        seg(150,360,340,360,false),
+        seg(520,360,710,360,false),
+        seg(340,360,340,440,true),
+        seg(520,360,520,440,true),
+        seg(250,140,380,140,false),
+        seg(480,140,610,140,false),
+        seg(380,140,380,220,true),
+      ]
+    }
+  ];
+
+  const PULSE_SPEED = 340;
+  const HUNTER_FADE = 1500;
+  const MAX_BOUNCE_DEPTH = 2;
+  const PLAYER_R = 8;
+  const HUNTER_R = 11;
+  const EXIT_R = 22;
+
+  let levelIndex = 0;
+  let game = null;
+  let keys = {};
+  let lastTime = performance.now();
+  let running = false;
+
+  function boundarySegs(){
+    return [
+      seg(10,10,850,10,false),
+      seg(850,10,850,530,false),
+      seg(850,530,10,530,false),
+      seg(10,530,10,10,false),
+    ];
+  }
+
+  function buildLevel(idx){
+    const def = LEVELS[idx];
+    const walls = [...boundarySegs(), ...def.walls];
+    return {
+      idx,
+      player: {x:def.player.x, y:def.player.y, vx:0, vy:0, heading:0},
+      exit: {x:def.exit.x, y:def.exit.y, found:false, foundAt:0},
+      hunters: def.hunters.map(h => ({
+        x:h.x, y:h.y,
+        speed:h.speed,
+        state:'idle',
+        wanderTarget:null,
+        wanderUntil:0,
+        target:null,
+        revealAt:-99999,
+      })),
+      walls,
+      wallReveal: new Array(walls.length).fill(-99999),
+      pulses: [],
+      echoesUsed: 0,
+      cooldownUntil: 0,
+      cooldownMs: def.cooldown || 950,
+      wallFadeMs: def.wallFade || 4200,
+      ended:false,
+      won:false,
+      particles: makeParticles(),
+    };
+  }
+
+  function makeParticles(){
+    const p = [];
+    for(let i=0;i<26;i++){
+      p.push({
+        x: Math.random()*W, y: Math.random()*H,
+        r: 0.6+Math.random()*1.4,
+        speed: 6+Math.random()*10,
+        drift: (Math.random()-0.5)*6,
+        alpha: 0.06+Math.random()*0.10,
+      });
+    }
+    return p;
+  }
+
+  // ---------------- geometry helpers ----------------
+  function closestPointOnSegment(px,py,x1,y1,x2,y2){
+    const dx=x2-x1, dy=y2-y1;
+    const lenSq = dx*dx+dy*dy;
+    let t = lenSq===0 ? 0 : ((px-x1)*dx+(py-y1)*dy)/lenSq;
+    t = Math.max(0, Math.min(1,t));
+    const cx = x1+t*dx, cy = y1+t*dy;
+    return {x:cx, y:cy, dist: Math.hypot(px-cx, py-cy)};
+  }
+
+  function resolveCircleVsWalls(entity, walls){
+    for(let pass=0; pass<2; pass++){
+      for(const w of walls){
+        const cp = closestPointOnSegment(entity.x, entity.y, w.x1,w.y1,w.x2,w.y2);
+        const r = entity.radius;
+        if(cp.dist < r){
+          if(cp.dist > 0.0001){
+            const nx=(entity.x-cp.x)/cp.dist, ny=(entity.y-cp.y)/cp.dist;
+            const push = r-cp.dist;
+            entity.x += nx*push;
+            entity.y += ny*push;
+          } else {
+            const dx=w.x2-w.x1, dy=w.y2-w.y1;
+            const len=Math.hypot(dx,dy)||1;
+            entity.x += (-dy/len)*r;
+            entity.y += (dx/len)*r;
+          }
+        }
+      }
+    }
+  }
+
+  // ---------------- input ----------------
+  window.addEventListener('keydown', e => {
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space',' '].includes(e.key) || e.code==='Space'){
+      e.preventDefault();
+    }
+    keys[e.key.toLowerCase()] = true;
+    if((e.code === 'Space' || e.key === ' ') && running){
+      castEcho();
+    }
+  });
+  window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+  function castEcho(){
+    const now = performance.now();
+    if(now < game.cooldownUntil) return;
+    game.cooldownUntil = now + game.cooldownMs;
+    game.echoesUsed += 1;
+    el.echoCount.textContent = game.echoesUsed;
+    game.pulses.push({
+      x: game.player.x, y: game.player.y,
+      r: 0, speed: PULSE_SPEED, maxR: 900,
+      bounced: new Set(), depth: 0, primary:true,
+    });
+    for(const h of game.hunters){
+      h.target = {x: game.player.x, y: game.player.y};
+      h.state = 'hunt';
+    }
+  }
+
+  // ---------------- update ----------------
+  function update(dt){
+    const p = game.player;
+    let dx=0, dy=0;
+    if(keys['w']||keys['arrowup']) dy -= 1;
+    if(keys['s']||keys['arrowdown']) dy += 1;
+    if(keys['a']||keys['arrowleft']) dx -= 1;
+    if(keys['d']||keys['arrowright']) dx += 1;
+    if(dx||dy){
+      const len = Math.hypot(dx,dy);
+      dx/=len; dy/=len;
+      p.heading = Math.atan2(dy,dx);
+      const speed = 148;
+      p.x += dx*speed*dt;
+      p.y += dy*speed*dt;
+    }
+    p.radius = PLAYER_R;
+    resolveCircleVsWalls(p, game.walls);
+
+    // pulses
+    const now = performance.now();
+    for(const pulse of game.pulses){
+      pulse.r += pulse.speed*dt;
+    }
+    for(const pulse of game.pulses){
+      if(pulse.dead) continue;
+      for(let i=0;i<game.walls.length;i++){
+        const w = game.walls[i];
+        const cp = closestPointOnSegment(pulse.x,pulse.y,w.x1,w.y1,w.x2,w.y2);
+        if(cp.dist <= pulse.r){
+          game.wallReveal[i] = now;
+          if(w.mirror && !pulse.bounced.has(i) && pulse.depth < MAX_BOUNCE_DEPTH){
+            pulse.bounced.add(i);
+            game.pulses.push({
+              x: cp.x, y: cp.y, r:0,
+              speed: pulse.speed*0.85,
+              maxR: pulse.maxR*0.6,
+              bounced: new Set(pulse.bounced),
+              depth: pulse.depth+1,
+              primary:false,
+            });
+          }
+        }
+      }
+      // exit reveal
+      const de = Math.hypot(pulse.x-game.exit.x, pulse.y-game.exit.y);
+      if(de <= pulse.r && !game.exit.found){
+        game.exit.found = true;
+        game.exit.foundAt = now;
+      }
+      // hunter reveal
+      for(const h of game.hunters){
+        const dh = Math.hypot(pulse.x-h.x, pulse.y-h.y);
+        if(dh <= pulse.r){
+          h.revealAt = now;
+        }
+      }
+    }
+    game.pulses = game.pulses.filter(pl => pl.r < pl.maxR);
+
+    // hunter behaviour
+    for(const h of game.hunters){
+      h.radius = HUNTER_R;
+      if(h.state === 'hunt' && h.target){
+        const ddx = h.target.x-h.x, ddy = h.target.y-h.y;
+        const dd = Math.hypot(ddx,ddy);
+        if(dd < 10){
+          h.state = 'search';
+          h.wanderUntil = now + 2200;
+          h.wanderTarget = null;
+        } else {
+          h.x += (ddx/dd)*h.speed*dt;
+          h.y += (ddy/dd)*h.speed*dt;
+        }
+      } else if(h.state === 'search'){
+        if(!h.wanderTarget || Math.hypot(h.wanderTarget.x-h.x, h.wanderTarget.y-h.y) < 12){
+          h.wanderTarget = {
+            x: Math.max(30, Math.min(830, h.x + (Math.random()-0.5)*220)),
+            y: Math.max(30, Math.min(510, h.y + (Math.random()-0.5)*220)),
+          };
+        }
+        const ddx = h.wanderTarget.x-h.x, ddy = h.wanderTarget.y-h.y;
+        const dd = Math.hypot(ddx,ddy)||1;
+        h.x += (ddx/dd)*h.speed*0.55*dt;
+        h.y += (ddy/dd)*h.speed*0.55*dt;
+        if(now > h.wanderUntil) h.state = 'idle';
+      } else {
+        if(!h.wanderTarget || Math.hypot(h.wanderTarget.x-h.x, h.wanderTarget.y-h.y) < 12 || Math.random()<0.003){
+          h.wanderTarget = {
+            x: Math.max(30, Math.min(830, h.x + (Math.random()-0.5)*120)),
+            y: Math.max(30, Math.min(510, h.y + (Math.random()-0.5)*120)),
+          };
+        }
+        const ddx = h.wanderTarget.x-h.x, ddy = h.wanderTarget.y-h.y;
+        const dd = Math.hypot(ddx,ddy)||1;
+        h.x += (ddx/dd)*h.speed*0.25*dt;
+        h.y += (ddy/dd)*h.speed*0.25*dt;
+      }
+      resolveCircleVsWalls(h, game.walls);
+    }
+
+    // particles
+    for(const pt of game.particles){
+      pt.y -= pt.speed*dt;
+      pt.x += pt.drift*dt;
+      if(pt.y < -4){ pt.y = H+4; pt.x = Math.random()*W; }
+    }
+
+    // cooldown ring
+    const remain = Math.max(0, game.cooldownUntil - now);
+    const frac = 1 - remain/game.cooldownMs;
+    const circumference = 88;
+    el.cdRing.setAttribute('stroke-dashoffset', String(circumference*(1-frac)));
+
+    // win/lose checks
+    const distToExit = Math.hypot(p.x-game.exit.x, p.y-game.exit.y);
+    if(!game.ended && distToExit < EXIT_R*0.6){
+      game.ended = true; game.won = true;
+      onWin();
+    }
+    if(!game.ended){
+      for(const h of game.hunters){
+        const distToHunter = Math.hypot(p.x-h.x, p.y-h.y);
+        if(distToHunter < (PLAYER_R+HUNTER_R+3)){
+          game.ended = true; game.won = false;
+          onLose();
+          break;
+        }
+      }
+    }
+  }
+
+  // ---------------- render ----------------
+  function render(){
+    ctx.clearRect(0,0,W,H);
+
+    // particles (sediment)
+    ctx.save();
+    for(const pt of game.particles){
+      ctx.globalAlpha = pt.alpha;
+      ctx.fillStyle = '#7fb9c9';
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    const now = performance.now();
+
+    // walls
+    for(let i=0;i<game.walls.length;i++){
+      const w = game.walls[i];
+      const isBoundary = i < 4;
+      let alpha;
+      if(isBoundary){
+        alpha = 0.16;
+      } else {
+        const since = now - game.wallReveal[i];
+        const fade = Math.max(0, 1 - since/game.wallFadeMs);
+        const base = w.mirror ? 0.14 : 0;
+        alpha = Math.max(base, fade);
+      }
+      if(alpha <= 0.01) continue;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = w.mirror ? getMirrorColor(now) : '#8fa9b8';
+      ctx.lineWidth = w.mirror ? 3 : 2.2;
+      if(w.mirror){
+        ctx.shadowColor = 'rgba(238,244,246,0.6)';
+        ctx.shadowBlur = 6;
+      }
+      ctx.beginPath();
+      ctx.moveTo(w.x1,w.y1);
+      ctx.lineTo(w.x2,w.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // exit
+    if(game.exit.found){
+      const t = (now-game.exit.foundAt)/1000;
+      const pulseR = EXIT_R + Math.sin(t*2.2)*3;
+      ctx.save();
+      const g = ctx.createRadialGradient(game.exit.x,game.exit.y,2, game.exit.x,game.exit.y, pulseR*2.2);
+      g.addColorStop(0, 'rgba(255,207,122,0.9)');
+      g.addColorStop(1, 'rgba(255,207,122,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(game.exit.x, game.exit.y, pulseR*2.2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#ffcf7a';
+      ctx.beginPath();
+      ctx.arc(game.exit.x, game.exit.y, 6, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // hunters
+    for(const h of game.hunters){
+      const hSince = now - h.revealAt;
+      if(hSince < HUNTER_FADE){
+        const a = 1 - hSince/HUNTER_FADE;
+        ctx.save();
+        ctx.globalAlpha = Math.min(0.9,a);
+        ctx.fillStyle = '#ff2d55';
+        ctx.shadowColor = '#ff2d55';
+        ctx.shadowBlur = 14;
+        drawSpikyBlob(h.x, h.y, 12, 6);
+        ctx.restore();
+      }
+    }
+
+    // pulses
+    for(const pulse of game.pulses){
+      const fade = Math.max(0, 1 - pulse.r/pulse.maxR);
+      ctx.save();
+      ctx.globalAlpha = fade*(pulse.primary?0.55:0.4);
+      ctx.strokeStyle = '#57e8d4';
+      ctx.lineWidth = pulse.primary?1.6:1.1;
+      ctx.beginPath();
+      ctx.arc(pulse.x, pulse.y, Math.max(0,pulse.r), 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // player
+    ctx.save();
+    ctx.translate(game.player.x, game.player.y);
+    ctx.rotate(game.player.heading);
+    ctx.fillStyle = '#bff2ea';
+    ctx.shadowColor = '#57e8d4';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(9,0);
+    ctx.quadraticCurveTo(-4,-7,-9,-2);
+    ctx.quadraticCurveTo(-4,0,-9,2);
+    ctx.quadraticCurveTo(-4,7,9,0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function getMirrorColor(now){
+    const shimmer = 0.5+0.5*Math.sin(now/500);
+    const c = Math.round(230+shimmer*20);
+    return `rgb(${c},${c},${Math.min(255,c+6)})`;
+  }
+
+  function drawSpikyBlob(cx,cy,r,spikes){
+    ctx.beginPath();
+    for(let i=0;i<spikes*2;i++){
+      const ang = (i/(spikes*2))*Math.PI*2;
+      const rad = i%2===0 ? r : r*0.55;
+      const x = cx+Math.cos(ang)*rad;
+      const y = cy+Math.sin(ang)*rad;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---------------- loop ----------------
+  function loop(t){
+    const dt = Math.min(0.05, (t-lastTime)/1000);
+    lastTime = t;
+    if(running && game && !game.ended){
+      update(dt);
+    }
+    if(game) render();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------- flow ----------------
+  function startLevel(idx){
+    levelIndex = idx;
+    game = buildLevel(idx);
+    el.depthNum.textContent = ROMAN[idx];
+    el.echoCount.textContent = '0';
+    running = true;
+    keys = {};
+    el.intro.classList.remove('show');
+    el.win.classList.remove('show');
+    el.lose.classList.remove('show');
+  }
+
+  function onWin(){
+    running = false;
+    if(levelIndex >= LEVELS.length-1){
+      el.winTitle.textContent = 'the abyssal floor';
+      el.winBody.textContent = 'No colder water beneath this. You cast ' + game.echoesUsed + ' echoes to get here.';
+      document.getElementById('nextBtn').textContent = 'descend again, from the top';
+    } else {
+      el.winTitle.textContent = 'vent found';
+      el.winBody.textContent = 'The water warms. ' + game.echoesUsed + ' echoes cast at this depth.';
+      document.getElementById('nextBtn').textContent = 'descend further';
+    }
+    el.win.classList.add('show');
+  }
+
+  function onLose(){
+    running = false;
+    el.lose.classList.add('show');
+  }
+
+  el.startBtn.addEventListener('click', () => startLevel(0));
+  el.nextBtn.addEventListener('click', () => {
+    if(levelIndex >= LEVELS.length-1) startLevel(0);
+    else startLevel(levelIndex+1);
+  });
+  el.retryBtn.addEventListener('click', () => startLevel(levelIndex));
+
+  // idle background before start
+  game = buildLevel(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
