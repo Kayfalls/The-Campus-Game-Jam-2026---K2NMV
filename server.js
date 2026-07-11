@@ -58,6 +58,7 @@ setInterval(() => {
 
 // ---- HTTP: serve client.html + sim.js ----
 const server = http.createServer((req, res) => {
+  if (req.url === '/healthz') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ok'); return; }
   let file = req.url === '/' ? '/client.html' : req.url;
   file = file.split('?')[0];
   const map = { '/client.html': 'text/html', '/sim.js': 'application/javascript', '/solo.js': 'application/javascript' };

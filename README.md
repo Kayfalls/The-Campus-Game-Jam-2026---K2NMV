@@ -1,4 +1,4 @@
-# Sounding: Depths — Local Multiplayer
+# Mirror Maze of Sound — Local Multiplayer
 
 ## Solo
 Just open `client.html` in a browser. No server needed.
@@ -13,6 +13,12 @@ Just open `client.html` in a browser. No server needed.
 4. The terminal prints an address like `http://192.168.1.42:8080`. Share that with everyone on the same Wi-Fi/hotspot.
 5. Everyone (including the host) opens that address in a browser → picks **Multiplayer** → sets name/skin.
 6. The first person to join is the host and gets a **Start Match** button; everyone else waits in the lobby.
+
+## Vercel hosting
+- Vercel can host the browser frontend for this game, but it cannot run the long-lived Node/WebSocket server that powers multiplayer.
+- For a public online multiplayer game, keep the Node server on a separate host such as Render, Railway, Fly.io, a VPS, or a local machine with port forwarding.
+- The frontend now supports a server override so you can point it at your Node host with a URL like `?server=your-host.example.com:8080` or `?server=https://your-host.example.com`.
+- The Node server also exposes `/healthz` for simple uptime checks.
 
 ## Notes on scope
 - True Bluetooth/Wi-Fi-Direct P2P (like Mini Militia) isn't possible from a browser — there's no web API for general peer-to-peer game data over Bluetooth. This uses a lightweight LAN server instead, which is the closest browser-based equivalent and needs no internet connection, just a shared local network.

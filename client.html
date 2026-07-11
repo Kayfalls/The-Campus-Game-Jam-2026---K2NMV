@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Sounding: Depths — Multiplayer</title>
+<title>Mirror Maze of Sound</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -131,7 +131,7 @@ canvas{ display:block; background:var(--abyss); }
 <body>
 
 <div id="screen-menu" class="screen">
-  <h1>Sounding: Depths</h1>
+  <h1>Mirror Maze of Sound</h1>
   <div class="card">
     <p class="small">Co-op survival against the dark. Play alone, or host a local match for up to 12 divers on the same Wi-Fi.</p>
     <button class="btn accent" id="btnSolo">Solo Dive</button>
@@ -162,7 +162,7 @@ canvas{ display:block; background:var(--abyss); }
 
 <div id="screen-solo" class="screen hidden" style="padding:8px;">
   <div class="title-block">
-    <h1>Sounding</h1>
+    <h1>Mirror Maze</h1>
     <div class="tag">descend by ear</div>
   </div>
   <div class="rig">
@@ -260,6 +260,14 @@ const SKIN_COLORS = ['#57e8d4','#ffcf7a','#eef4f6','#7ab8ff','#c98bff','#8bffb0'
 // ---------------- profile state ----------------
 let profile = { name: 'Diver', skin: 0 };
 let pendingMode = 'solo';
+const serverOverride = (window.__GAME_SERVER_URL__ || new URLSearchParams(location.search).get('server') || '').trim();
+
+function resolveSocketUrl(){
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  if (!serverOverride) return `${proto}://${location.host}`;
+  if (/^wss?:\/\//i.test(serverOverride)) return serverOverride.replace(/^http/i, 'ws');
+  return `${proto}://${serverOverride.replace(/^\/+/, '')}`;
+}
 
 function buildSkinPicker(){
   const wrap = el('skinPicker'); wrap.innerHTML='';
@@ -302,8 +310,7 @@ function RemoteNet(cb){
   let ws = null;
   return {
     join(p){
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      ws = new WebSocket(`${proto}://${location.host}`);
+      ws = new WebSocket(resolveSocketUrl());
       ws.onmessage = (ev) => {
         const m = JSON.parse(ev.data);
         if (m.type==='welcome') cb.onWelcome(m);
@@ -369,15 +376,22 @@ addEventListener('resize', resizeCanvas);
 
 let latestSnapshot = null;
 const keys = {};
-addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
-addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.code === 'Space') mouse.down = true;
+  if (e.key.toLowerCase()==='e') echoRequested = true;
+});
+addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+  if (e.code === 'Space') mouse.down = false;
+});
 let mouse = { x: innerWidth/2, y: innerHeight/2, down:false };
 canvas.addEventListener('mousemove', e => { mouse.x=e.clientX; mouse.y=e.clientY; });
-canvas.addEventListener('mousedown', () => mouse.down = true);
+canvas.addEventListener('mousedown', e => { mouse.x=e.clientX; mouse.y=e.clientY; mouse.down = true; });
 addEventListener('mouseup', () => mouse.down = false);
+window.addEventListener('blur', () => { mouse.down = false; });
 
 let echoRequested = false;
-addEventListener('keydown', e => { if (e.key.toLowerCase()==='e') echoRequested = true; });
 el('echoBtn').addEventListener('touchstart', e => { e.preventDefault(); echoRequested = true; });
 
 // touch joystick (movement)
@@ -444,8 +458,8 @@ function renderHud(s){
     el('hpfill').style.width = Math.max(0,me.hp)+'%';
     el('killInfo').textContent = `Kills: ${me.kills}  ·  Deaths: ${me.deaths}`;
   }
-  el('waveLabel').textContent = `Wave ${s.wave}`;
-  el('waveSub').textContent = s.phase==='rest' ? `Next wave in ${Math.ceil(s.waveTimer)}s` : `${s.hunters.length} hunters active`;
+  el('waveLabel').textContent = `Stage ${s.stage || 1}`;
+  el('waveSub').textContent = s.phase==='rest' ? `Wave ${s.wave} · next in ${Math.ceil(s.waveTimer)}s` : `Wave ${s.wave} · ${s.hunters.length} hunters active`;
 }
 
 function draw(){

@@ -1,0 +1,12 @@
+{
+  "name": "sounding-depths",
+  "version": "1.0.0",
+  "description": "Multiplayer WebSocket game server for Sounding: Depths",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

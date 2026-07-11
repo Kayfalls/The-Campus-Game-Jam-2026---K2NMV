@@ -20,11 +20,11 @@
   ];
 
   const PLAYER_R = 14, PLAYER_SPEED = 220, PLAYER_MAX_HP = 100;
-  const WEAPON_DMG = 20, WEAPON_COOLDOWN = 0.25, WEAPON_RANGE = 620;
-  const ECHO_COOLDOWN = 3, ECHO_RADIUS = 480;
-  const HUNTER_R = 16, HUNTER_BASE_SPEED = 90, HUNTER_BASE_HP = 60, HUNTER_CONTACT_DMG = 14;
-  const RESPAWN_TIME = 3;
-  const WAVE_REST = 5;
+  const WEAPON_DMG = 24, WEAPON_COOLDOWN = 0.2, WEAPON_RANGE = 620;
+  const ECHO_COOLDOWN = 2.4, ECHO_RADIUS = 620;
+  const HUNTER_R = 16, HUNTER_BASE_SPEED = 105, HUNTER_BASE_HP = 70, HUNTER_CONTACT_DMG = 16;
+  const RESPAWN_TIME = 2.2;
+  const WAVE_REST = 3;
 
   function rectsOverlapCircle(rect, cx, cy, r) {
     const nx = Math.max(rect.x, Math.min(cx, rect.x + rect.w));
@@ -80,7 +80,7 @@
     let s = seed >>> 0 || 1;
     const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s % 100000) / 100000; };
     return {
-      t: 0, wave: 0, waveTimer: WAVE_REST, phase: 'rest', // rest | active
+      t: 0, wave: 0, stage: 1, waveTimer: WAVE_REST, phase: 'rest', // rest | active
       players: {}, hunters: [], nextHunterId: 1, rng
     };
   }
@@ -102,9 +102,12 @@
 
   function spawnWave(state) {
     state.wave += 1;
-    const count = Math.min(2 + state.wave, 14);
-    const hp = HUNTER_BASE_HP + state.wave * 8;
-    const speed = HUNTER_BASE_SPEED + Math.min(state.wave * 4, 70);
+    const stage = Math.max(1, Math.floor((state.wave - 1) / 3) + 1);
+    state.stage = stage;
+    const count = Math.min(3 + state.wave + Math.max(0, stage - 1) + (stage >= 3 ? 2 : 0), 24);
+    const hp = HUNTER_BASE_HP + state.wave * 12 + stage * 8;
+    const speed = HUNTER_BASE_SPEED + Math.min(state.wave * 7 + stage * 6, 175);
+    const eliteEvery = stage >= 2 ? 4 : 999;
     for (let i = 0; i < count; i++) {
       const edge = Math.floor(state.rng() * 4);
       let x, y;
@@ -112,9 +115,12 @@
       else if (edge === 1) { x = ARENA.w - 40; y = 40 + state.rng() * (ARENA.h - 80); }
       else if (edge === 2) { x = 40 + state.rng() * (ARENA.w - 80); y = 40; }
       else { x = 40 + state.rng() * (ARENA.w - 80); y = ARENA.h - 40; }
+      const isElite = stage >= 2 && (i + state.wave) % eliteEvery === 0;
+      const hunterHp = isElite ? hp * 1.45 : hp;
+      const hunterSpeed = isElite ? speed * 1.08 : speed;
       state.hunters.push({
-        id: state.nextHunterId++, x, y, hp, maxHp: hp, speed,
-        target: null, stuckTimer: 0, lastX: x, lastY: y
+        id: state.nextHunterId++, x, y, hp: hunterHp, maxHp: hunterHp, speed: hunterSpeed,
+        target: null, stuckTimer: 0, lastX: x, lastY: y, elite: isElite
       });
     }
     state.phase = 'active';
@@ -236,12 +242,12 @@
 
   function snapshot(state) {
     return {
-      t: state.t, wave: state.wave, phase: state.phase, waveTimer: Math.max(0, state.waveTimer),
+      t: state.t, wave: state.wave, stage: state.stage, phase: state.phase, waveTimer: Math.max(0, state.waveTimer),
       players: Object.values(state.players).map(p => ({
         id: p.id, name: p.name, skin: p.skin, x: Math.round(p.x), y: Math.round(p.y),
         hp: Math.round(p.hp), alive: p.alive, kills: p.kills, deaths: p.deaths
       })),
-      hunters: state.hunters.map(h => ({ id: h.id, x: Math.round(h.x), y: Math.round(h.y), hp: h.hp, maxHp: h.maxHp }))
+      hunters: state.hunters.map(h => ({ id: h.id, x: Math.round(h.x), y: Math.round(h.y), hp: h.hp, maxHp: h.maxHp, elite: !!h.elite }))
     };
   }
 
