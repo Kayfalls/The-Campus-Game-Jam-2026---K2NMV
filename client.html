@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Sounding: Depths — Multiplayer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:   #04070c;
+  --abyss-2: #070c14;
+  --panel:   #0a1017;
+  --line:    #182430;
+  --pulse:   #57e8d4;
+  --mirror:  #eef4f6;
+  --vent:    #ffcf7a;
+  --hunter:  #ff2d55;
+  --ink:     #cfe0ea;
+  --ink-dim: #4d6577;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{
+  margin:0; height:100%; overflow:hidden;
+  background: radial-gradient(ellipse at 50% 30%, #060b12 0%, #03050a 70%);
+  color:var(--ink); font-family:'JetBrains Mono', monospace;
+  user-select:none;
+}
+h1,h2{font-family:'Cormorant Garamond', serif; font-weight:600; letter-spacing:.03em; margin:0 0 6px;}
+.screen{
+  position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; padding:24px; text-align:center;
+}
+.hidden{display:none !important;}
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:28px 32px; max-width:420px; width:100%;
+}
+.btn{
+  font-family:'JetBrains Mono',monospace; font-size:14px; letter-spacing:.05em;
+  background:transparent; color:var(--ink); border:1px solid var(--line);
+  padding:12px 20px; border-radius:6px; cursor:pointer; width:100%; margin-top:10px;
+  transition:background .15s, color .15s;
+}
+.btn:hover{ background:var(--pulse); color:#03130d; border-color:var(--pulse); }
+.btn.accent{ border-color:var(--pulse); color:var(--pulse); }
+.btn.danger{ border-color:var(--hunter); color:var(--hunter); }
+.btn:disabled{ opacity:.4; cursor:default; }
+.btn:disabled:hover{ background:transparent; color:var(--ink); }
+input[type=text]{
+  font-family:'JetBrains Mono',monospace; background:var(--abyss-2); border:1px solid var(--line);
+  color:var(--ink); padding:10px 12px; border-radius:6px; width:100%; font-size:14px; outline:none;
+}
+input[type=text]:focus{ border-color:var(--pulse); }
+.skins{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:14px 0; }
+.skin-dot{
+  width:38px; height:38px; border-radius:50%; cursor:pointer; border:2px solid transparent;
+  box-shadow:inset 0 0 0 2px rgba(0,0,0,.3);
+}
+.skin-dot.sel{ border-color:var(--mirror); transform:scale(1.1); }
+.small{ font-size:12px; color:var(--ink-dim); }
+#lobbyList{ text-align:left; margin:12px 0; max-height:180px; overflow-y:auto; }
+#lobbyList div{ padding:6px 8px; border-bottom:1px solid var(--line); font-size:13px; display:flex; justify-content:space-between; }
+#gameWrap{ position:fixed; inset:0; }
+canvas{ display:block; background:var(--abyss); }
+#hud{
+  position:fixed; top:0; left:0; right:0; padding:10px 14px; display:flex; justify-content:space-between;
+  align-items:flex-start; pointer-events:none; font-size:13px; letter-spacing:.03em;
+}
+#hpbar{ width:160px; height:10px; background:var(--abyss-2); border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+#hpfill{ height:100%; background:var(--pulse); width:100%; transition:width .15s; }
+#waveInfo{ text-align:right; }
+#leaveBtn{ pointer-events:all; position:fixed; top:10px; right:14px; font-size:11px; padding:6px 10px; width:auto; }
+/* ---- solo evasion game (ported) ---- */
+.title-block{ text-align:center; margin-bottom:10px; }
+.title-block h1{ font-family:'Cormorant Garamond', serif; font-weight:600; font-style:italic; letter-spacing:.14em; font-size:clamp(22px,4vw,34px); text-transform:uppercase; }
+.title-block .tag{ font-family:'Cormorant Garamond', serif; font-size:13px; letter-spacing:.2em; color:var(--ink-dim); text-transform:lowercase; }
+.rig{ position:relative; width:min(900px,96vw); aspect-ratio:860/540; border-radius:14px; padding:14px; background:linear-gradient(180deg,#0d1620,#060a10); box-shadow:0 0 0 1px #1c2a38, inset 0 0 40px rgba(0,0,0,.6), 0 30px 60px rgba(0,0,0,.55); }
+.porthole{ position:relative; width:100%; height:100%; border-radius:8px; overflow:hidden; box-shadow:inset 0 0 60px rgba(0,0,0,.85), inset 0 0 0 2px #0e161f; background:var(--abyss); }
+.porthole canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.vignette{ position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(0,0,0,.55) 82%, rgba(0,0,0,.85) 100%); }
+.hud{ position:absolute; top:14px; left:14px; display:flex; align-items:center; gap:10px; pointer-events:none; }
+.gauge{ width:52px; height:52px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #1b2733, #0a1119 70%); box-shadow:0 0 0 1px #26343f, inset 0 0 8px rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; position:relative; }
+.gauge::before{ content:''; position:absolute; inset:5px; border-radius:50%; border:1px dashed rgba(87,232,212,.25); }
+.gauge .num{ font-family:'Cormorant Garamond', serif; font-size:20px; font-style:italic; color:var(--pulse); }
+.hud-readout{ display:flex; flex-direction:column; gap:2px; }
+.hud-readout .label{ font-size:9px; letter-spacing:.12em; color:var(--ink-dim); text-transform:uppercase; }
+.hud-readout .window{ background:#060b11; border:1px solid #1b2731; border-radius:3px; padding:2px 8px; font-size:13px; color:var(--ink); min-width:64px; }
+.cooldown{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; pointer-events:none; }
+.cooldown svg{ transform:rotate(-90deg); }
+.cooldown circle{ fill:none; stroke-width:3; }
+.cooldown .track{ stroke:#182430; }
+.cooldown .fill{ stroke:var(--pulse); stroke-linecap:round; transition:stroke-dashoffset .05s linear; }
+.hint{ position:absolute; bottom:12px; left:0; right:0; text-align:center; font-size:11px; letter-spacing:.08em; color:var(--ink-dim); pointer-events:none; }
+.hint b{ color:var(--pulse); }
+.overlay{ position:absolute; inset:0; background:rgba(3,5,9,.92); display:none; align-items:center; justify-content:center; text-align:center; padding:24px; }
+.overlay.show{ display:flex; }
+.overlay-inner{ max-width:420px; }
+.overlay h2{ font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:600; font-size:28px; letter-spacing:.04em; margin-bottom:14px; }
+.overlay.intro h2{ color:var(--pulse); }
+.overlay.win h2{ color:var(--vent); }
+.overlay.lose h2{ color:var(--hunter); }
+.overlay.notice h2{ color:var(--hunter); }
+.overlay p, .overlay .rule{ font-family:'Cormorant Garamond', serif; font-size:16px; line-height:1.65; color:#a9c0cd; margin-bottom:10px; }
+.overlay .rule b{ color:var(--ink); font-weight:600; }
+.overlay button{ margin-top:16px; background:transparent; border:1px solid var(--pulse); color:var(--pulse); font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.1em; padding:11px 22px; border-radius:3px; cursor:pointer; text-transform:uppercase; transition:background .15s, color .15s; }
+.overlay button:hover{ background:var(--pulse); color:#03130d; }
+.overlay.win button{ border-color:var(--vent); color:var(--vent); }
+.overlay.win button:hover{ background:var(--vent); color:#2b1c04; }
+.overlay.lose button{ border-color:var(--hunter); color:var(--hunter); }
+.overlay.lose button:hover{ background:var(--hunter); color:#2b0410; }
+.overlay.notice button{ border-color:var(--hunter); color:var(--hunter); }
+.overlay.notice button:hover{ background:var(--hunter); color:#2b0410; }
+
+.touch-only{ display:none; }
+@media (pointer:coarse){
+  .touch-only{ display:block; }
+  #joyZone,#fireZone{ position:fixed; bottom:0; width:50%; height:42%; pointer-events:all; }
+  #joyZone{ left:0; } #fireZone{ right:0; }
+  #echoBtn{
+    position:fixed; bottom:14px; left:50%; transform:translateX(-50%); pointer-events:all;
+    width:auto; padding:10px 18px; border-radius:20px; background:rgba(10,16,23,.85);
+  }
+  #joyStick{
+    position:fixed; width:70px; height:70px; border-radius:50%; border:2px solid var(--pulse);
+    background:rgba(87,232,212,.12); pointer-events:none; display:none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="screen-menu" class="screen">
+  <h1>Sounding: Depths</h1>
+  <div class="card">
+    <p class="small">Co-op survival against the dark. Play alone, or host a local match for up to 12 divers on the same Wi-Fi.</p>
+    <button class="btn accent" id="btnSolo">Solo Dive</button>
+    <button class="btn" id="btnMulti">Multiplayer</button>
+    <p class="small" style="margin-top:14px;">To host: run <code>node server.js</code> on one device, then open the address it prints on every player's browser.</p>
+  </div>
+</div>
+
+<div id="screen-profile" class="screen hidden">
+  <div class="card">
+    <h2>Who's diving?</h2>
+    <input type="text" id="nameInput" maxlength="16" placeholder="Your name">
+    <div class="skins" id="skinPicker"></div>
+    <button class="btn accent" id="btnProfileContinue">Continue</button>
+    <button class="btn" id="btnProfileBack">Back</button>
+  </div>
+</div>
+
+<div id="screen-lobby" class="screen hidden">
+  <div class="card">
+    <h2>Lobby</h2>
+    <p class="small" id="lobbyStatus">Connecting…</p>
+    <div id="lobbyList"></div>
+    <button class="btn accent" id="btnStart">Start Match</button>
+    <button class="btn" id="btnLeaveLobby">Leave</button>
+  </div>
+</div>
+
+<div id="screen-solo" class="screen hidden" style="padding:8px;">
+  <div class="title-block">
+    <h1>Sounding</h1>
+    <div class="tag">descend by ear</div>
+  </div>
+  <div class="rig">
+    <div class="porthole">
+      <canvas id="stage" width="860" height="540"></canvas>
+      <div class="vignette"></div>
+      <div class="hud">
+        <div class="gauge"><div class="num" id="depthNum">I</div></div>
+        <div class="hud-readout">
+          <div class="label">Depth</div>
+          <div class="window" id="levelName">Shelf Reach</div>
+        </div>
+        <div class="hud-readout">
+          <div class="label">Echoes cast</div>
+          <div class="window" id="echoCount">0</div>
+        </div>
+        <div class="hud-readout" id="agitationRow" style="display:none">
+          <div class="label">Agitation</div>
+          <div class="window" id="agitationVal">0%</div>
+        </div>
+      </div>
+      <div class="cooldown">
+        <svg width="34" height="34">
+          <circle class="track" cx="17" cy="17" r="14"></circle>
+          <circle class="fill" id="cdRing" cx="17" cy="17" r="14" stroke-dasharray="88" stroke-dashoffset="0"></circle>
+        </svg>
+      </div>
+      <div class="hint">move <b>WASD</b> / <b>arrows</b> &nbsp;·&nbsp; cast an echo <b>space</b></div>
+      <button id="soloLeaveBtn" class="btn danger" style="position:absolute;top:10px;right:10px;width:auto;font-size:11px;padding:6px 10px;">Leave</button>
+
+      <div class="overlay intro show" id="introOverlay">
+        <div class="overlay-inner">
+          <h2>the dark has depth</h2>
+          <p class="rule">You carry no light — only <b>sound</b>. Press space to cast an echo: it paints the rock around you, then fades.</p>
+          <p class="rule">Silvered stone <b>carries the echo further</b>, bending it around corners you can't yet see.</p>
+          <p class="rule">Something down here waits in the dark, <b>still</b> — until your first echo wakes it. From then on, it hunts by the same sound you cast.</p>
+          <p class="rule">Deeper down, something else waits too — <b>slower to lose interest</b> the further you descend.</p>
+          <p class="rule">Find the warm vent. Descend.</p>
+          <button id="startBtn">begin the descent</button>
+        </div>
+      </div>
+      <div class="overlay win" id="winOverlay">
+        <div class="overlay-inner">
+          <h2 id="winTitle">vent found</h2>
+          <p id="winBody">The water warms. Something ahead breathes easier than the dark behind.</p>
+          <button id="nextBtn">descend further</button>
+        </div>
+      </div>
+      <div class="overlay lose" id="loseOverlay">
+        <div class="overlay-inner">
+          <h2>caught in the dark</h2>
+          <p>It never needed to see you. It only ever needed to listen.</p>
+          <button id="retryBtn">try this depth again</button>
+        </div>
+      </div>
+      <div class="overlay notice" id="noticeOverlay">
+        <div class="overlay-inner">
+          <h2>the water listens closer</h2>
+          <p class="rule">From here down, every echo you cast leaves something behind. Each cast makes what hunts you a little faster — for the rest of this depth.</p>
+          <p class="rule">Cast with more care. The vent is still waiting.</p>
+          <button id="noticeBtn">continue the descent</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gameWrap" class="hidden">
+  <canvas id="canvas"></canvas>
+  <div id="hud">
+    <div>
+      <div id="hpbar"><div id="hpfill"></div></div>
+      <div class="small" id="killInfo">Kills: 0</div>
+    </div>
+    <div id="waveInfo">
+      <div id="waveLabel">Wave 1</div>
+      <div class="small" id="waveSub"></div>
+    </div>
+  </div>
+  <button class="btn danger" id="leaveBtn">Leave</button>
+
+  <div id="joyZone" class="touch-only"></div>
+  <div id="fireZone" class="touch-only"></div>
+  <div id="joyStick" class="touch-only"></div>
+  <button id="echoBtn" class="btn touch-only">ECHO</button>
+</div>
+
+<script src="/sim.js"></script>
+<script src="/solo.js"></script>
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+const SKIN_COLORS = ['#57e8d4','#ffcf7a','#eef4f6','#7ab8ff','#c98bff','#8bffb0'];
+
+// ---------------- profile state ----------------
+let profile = { name: 'Diver', skin: 0 };
+let pendingMode = 'solo';
+
+function buildSkinPicker(){
+  const wrap = el('skinPicker'); wrap.innerHTML='';
+  SKIN_COLORS.forEach((c,i)=>{
+    const d = document.createElement('div');
+    d.className = 'skin-dot' + (i===profile.skin?' sel':'');
+    d.style.background = c;
+    d.onclick = () => { profile.skin = i; buildSkinPicker(); };
+    wrap.appendChild(d);
+  });
+}
+
+function showScreen(id){
+  ['screen-menu','screen-profile','screen-lobby','screen-solo'].forEach(s=>el(s).classList.add('hidden'));
+  el('gameWrap').classList.add('hidden');
+  el('leaveBtn').classList.add('hidden');
+  if (id==='game'){ el('gameWrap').classList.remove('hidden'); el('leaveBtn').classList.remove('hidden'); }
+  else el(id).classList.remove('hidden');
+}
+
+el('btnSolo').onclick = () => { pendingMode='solo'; showScreen('screen-profile'); };
+el('btnMulti').onclick = () => { pendingMode='multi'; showScreen('screen-profile'); };
+el('btnProfileBack').onclick = () => showScreen('screen-menu');
+el('nameInput').addEventListener('input', e => profile.name = e.target.value || 'Diver');
+buildSkinPicker();
+
+el('btnProfileContinue').onclick = () => {
+  profile.name = (el('nameInput').value || 'Diver').trim() || 'Diver';
+  if (pendingMode === 'solo') startSolo();
+  else startMulti();
+};
+
+// ---------------- networking abstraction ----------------
+// Both transports expose: join(profile), sendInput(input), start(), leave(),
+// and call these callbacks: onWelcome({id,isHost}), onLobby({players,hostId,matchRunning}),
+// onMatchStart(), onSnapshot(snapshot)
+let net = null;
+
+function RemoteNet(cb){
+  let ws = null;
+  return {
+    join(p){
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}`);
+      ws.onmessage = (ev) => {
+        const m = JSON.parse(ev.data);
+        if (m.type==='welcome') cb.onWelcome(m);
+        else if (m.type==='lobby') cb.onLobby(m);
+        else if (m.type==='matchStart') cb.onMatchStart();
+        else if (m.type==='snapshot') cb.onSnapshot(m.s);
+        else if (m.type==='full') cb.onFull && cb.onFull();
+      };
+      ws.onopen = () => ws.send(JSON.stringify({ type:'profile', name:p.name, skin:p.skin }));
+      ws.onclose = () => cb.onDisconnect && cb.onDisconnect();
+    },
+    start(){ ws && ws.send(JSON.stringify({ type:'start' })); },
+    sendInput(input){ ws && ws.readyState===1 && ws.send(JSON.stringify({ type:'input', input })); },
+    leave(){ ws && ws.close(); ws=null; }
+  };
+}
+
+// ---------------- lobby flow ----------------
+let myId=null, iAmHost=false;
+
+function startSolo(){
+  showScreen('screen-solo');
+  SoloGame.start({ name: profile.name, color: SKIN_COLORS[profile.skin] || SKIN_COLORS[0] }, () => showScreen('screen-menu'));
+}
+function startMulti(){
+  net = RemoteNet(netCallbacks);
+  showScreen('screen-lobby');
+  el('lobbyStatus').textContent = 'Connecting…';
+  el('btnStart').classList.add('hidden');
+  net.join(profile);
+}
+
+const netCallbacks = {
+  onWelcome(m){ myId=m.id; iAmHost=m.isHost; },
+  onLobby(m){
+    if (el('screen-lobby').classList.contains('hidden')) return;
+    el('lobbyStatus').textContent = m.matchRunning ? 'Match in progress…' :
+      (iAmHost ? 'You are the host. Start when ready.' : 'Waiting for host to start…');
+    const list = el('lobbyList'); list.innerHTML='';
+    m.players.forEach(p=>{
+      const row = document.createElement('div');
+      row.innerHTML = `<span>${escapeHtml(p.name)}${p.id===m.hostId?' ★':''}</span><span style="color:${SKIN_COLORS[p.skin]||'#fff'}">●</span>`;
+      list.appendChild(row);
+    });
+    el('btnStart').classList.toggle('hidden', !iAmHost || m.matchRunning);
+    el('btnStart').disabled = m.players.length < 1;
+  },
+  onMatchStart(){ showScreen('game'); resizeCanvas(); },
+  onSnapshot(s){ latestSnapshot = s; renderHud(s); },
+  onFull(){ alert('This room is full (12 players max).'); showScreen('screen-menu'); },
+  onDisconnect(){ if(!el('gameWrap').classList.contains('hidden')){ showScreen('screen-menu'); } }
+};
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+el('btnStart').onclick = () => net.start();
+el('btnLeaveLobby').onclick = () => { net && net.leave(); showScreen('screen-menu'); };
+el('leaveBtn').onclick = () => { net && net.leave(); latestSnapshot=null; showScreen('screen-menu'); };
+
+// ---------------- game render + input ----------------
+const canvas = el('canvas'), ctx = canvas.getContext('2d');
+function resizeCanvas(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+addEventListener('resize', resizeCanvas);
+
+let latestSnapshot = null;
+const keys = {};
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+let mouse = { x: innerWidth/2, y: innerHeight/2, down:false };
+canvas.addEventListener('mousemove', e => { mouse.x=e.clientX; mouse.y=e.clientY; });
+canvas.addEventListener('mousedown', () => mouse.down = true);
+addEventListener('mouseup', () => mouse.down = false);
+
+let echoRequested = false;
+addEventListener('keydown', e => { if (e.key.toLowerCase()==='e') echoRequested = true; });
+el('echoBtn').addEventListener('touchstart', e => { e.preventDefault(); echoRequested = true; });
+
+// touch joystick (movement)
+let joyActive=false, joyOrigin={x:0,y:0}, joyVec={x:0,y:0};
+const joyZone = el('joyZone'), joyStick = el('joyStick');
+joyZone.addEventListener('touchstart', e => {
+  e.preventDefault(); const t=e.changedTouches[0];
+  joyActive=true; joyOrigin={x:t.clientX,y:t.clientY}; joyVec={x:0,y:0};
+  joyStick.style.display='block'; joyStick.dataset.id=t.identifier;
+  positionStick(t.clientX,t.clientY);
+});
+joyZone.addEventListener('touchmove', e => {
+  e.preventDefault(); const t=[...e.changedTouches].find(t=>String(t.identifier)===joyStick.dataset.id);
+  if(!t) return;
+  let dx=t.clientX-joyOrigin.x, dy=t.clientY-joyOrigin.y;
+  const d=Math.hypot(dx,dy), max=50;
+  if (d>max){ dx=dx/d*max; dy=dy/d*max; }
+  joyVec = { x: dx/max, y: dy/max };
+  positionStick(joyOrigin.x+dx, joyOrigin.y+dy);
+});
+function endJoy(e){ e.preventDefault(); joyActive=false; joyVec={x:0,y:0}; joyStick.style.display='none'; }
+joyZone.addEventListener('touchend', endJoy);
+joyZone.addEventListener('touchcancel', endJoy);
+function positionStick(x,y){ joyStick.style.left=(x-35)+'px'; joyStick.style.top=(y-35)+'px'; }
+
+// touch fire zone (aim + fire by touching right half)
+let touchAim = null;
+const fireZone = el('fireZone');
+fireZone.addEventListener('touchstart', e => { e.preventDefault(); updateTouchAim(e); });
+fireZone.addEventListener('touchmove', e => { e.preventDefault(); updateTouchAim(e); });
+fireZone.addEventListener('touchend', e => { e.preventDefault(); touchAim=null; });
+function updateTouchAim(e){
+  const t = e.changedTouches[0];
+  touchAim = { x: t.clientX, y: t.clientY, fire:true };
+}
+
+let camX=0, camY=0;
+function gatherInput(){
+  const up = keys['w']||keys['arrowup'];
+  const down = keys['s']||keys['arrowdown'];
+  const left = keys['a']||keys['arrowleft'];
+  const right = keys['d']||keys['arrowright'];
+  let aimX = mouse.x - canvas.width/2, aimY = mouse.y - canvas.height/2, fire = mouse.down;
+  let jUp=false,jDown=false,jLeft=false,jRight=false;
+  if (joyActive){ jLeft=joyVec.x<-0.3; jRight=joyVec.x>0.3; jUp=joyVec.y<-0.3; jDown=joyVec.y>0.3; }
+  if (touchAim){ aimX = touchAim.x - canvas.width/2; aimY = touchAim.y - canvas.height/2; fire = true; }
+  const input = {
+    up: up||jUp, down: down||jDown, left: left||jLeft, right: right||jRight,
+    aimX, aimY, fire, echo: echoRequested
+  };
+  echoRequested = false;
+  return input;
+}
+
+function inputLoop(){
+  if (net && !el('gameWrap').classList.contains('hidden')) net.sendInput(gatherInput());
+  requestAnimationFrame(inputLoop);
+}
+requestAnimationFrame(inputLoop);
+
+function renderHud(s){
+  const me = s.players.find(p=>p.id===myId);
+  if (me){
+    el('hpfill').style.width = Math.max(0,me.hp)+'%';
+    el('killInfo').textContent = `Kills: ${me.kills}  ·  Deaths: ${me.deaths}`;
+  }
+  el('waveLabel').textContent = `Wave ${s.wave}`;
+  el('waveSub').textContent = s.phase==='rest' ? `Next wave in ${Math.ceil(s.waveTimer)}s` : `${s.hunters.length} hunters active`;
+}
+
+function draw(){
+  requestAnimationFrame(draw);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if (!latestSnapshot) return;
+  const s = latestSnapshot;
+  const me = s.players.find(p=>p.id===myId) || s.players[0];
+  camX = (me? me.x : Sim.ARENA.w/2) - canvas.width/2;
+  camY = (me? me.y : Sim.ARENA.h/2) - canvas.height/2;
+
+  ctx.save();
+  ctx.translate(-camX,-camY);
+
+  // walls
+  ctx.fillStyle = '#182430';
+  Sim.WALLS.forEach(w => ctx.fillRect(w.x,w.y,w.w,w.h));
+
+  // hunters
+  s.hunters.forEach(h => {
+    ctx.beginPath(); ctx.arc(h.x,h.y,Sim.HUNTER_R,0,7); 
+    ctx.fillStyle = '#ff2d55'; ctx.fill();
+    ctx.fillStyle = '#03050a';
+    ctx.fillRect(h.x-16,h.y-26,32,4);
+    ctx.fillStyle = '#ff2d55';
+    ctx.fillRect(h.x-16,h.y-26,32*Math.max(0,h.hp/h.maxHp),4);
+  });
+
+  // players
+  s.players.forEach(p => {
+    if (!p.alive) return;
+    ctx.beginPath(); ctx.arc(p.x,p.y,Sim.PLAYER_R,0,7);
+    ctx.fillStyle = SKIN_COLORS[p.skin]||'#57e8d4'; ctx.fill();
+    if (p.id===myId){ ctx.strokeStyle='#eef4f6'; ctx.lineWidth=2; ctx.stroke(); }
+    ctx.fillStyle = '#cfe0ea'; ctx.font = '11px JetBrains Mono';
+    ctx.textAlign='center';
+    ctx.fillText(p.name, p.x, p.y-22);
+  });
+
+  ctx.restore();
+}
+requestAnimationFrame(draw);
+resizeCanvas();
+</script>
+</body>
+</html>
