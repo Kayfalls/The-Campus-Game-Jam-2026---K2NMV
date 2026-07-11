@@ -1,7 +1,3 @@
 {
-  "version": 2,
-  "cleanUrls": false,
-  "rewrites": [
-    { "source": "/", "destination": "/client.html" }
-  ]
+  "version": 2
 }
